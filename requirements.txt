@@ -1,0 +1,29 @@
+# Core PDF parsing
+camelot-py[cv]>=0.10.1
+tabula-py>=2.9.0
+pdfplumber>=0.10.2
+PyPDF2>=3.0.1
+
+# Data handling
+pandas>=2.2.2
+numpy>=1.26.4
+
+# Web UI
+streamlit>=1.32.0
+
+# OCR support (optional but recommended)
+pytesseract>=0.3.10
+pdf2image>=1.17.0
+Pillow>=10.2.0
+
+# Google Gemini / Vertex AI SDK
+google-generativeai>=0.4.1
+
+# Utility
+python-dateutil>=2.9.0
+openpyxl>=3.1.2
+tqdm>=4.66.2
+regex>=2023.12.25
+
+# Logging / Debugging
+loguru>=0.7.2
