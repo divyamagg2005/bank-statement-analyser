@@ -7,7 +7,7 @@ numpy>=1.23.0,<1.25.0
 camelot-py[base]==0.10.1
 opencv-python-headless>=4.6.0,<4.9.0
 gsutil==5.23
-git+https://github.com/ahupp/python-ghostscript.git@master#egg=ghostscript
+ghostscript==0.7
 
 # Data visualization
 plotly>=5.13.0,<6.0.0

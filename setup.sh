@@ -18,6 +18,11 @@ apt-get install -y --no-install-recommends \
 # Install Python dependencies
 echo "Installing Python dependencies..."
 python -m pip install --upgrade pip setuptools wheel
+
+# Install ghostscript package without dependencies
+pip install --no-deps ghostscript==0.7
+
+# Install other dependencies
 pip install -r requirements.txt
 
 echo "Setup completed successfully!"
