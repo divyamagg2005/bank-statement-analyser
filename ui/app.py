@@ -444,14 +444,86 @@ def main():
                         # Display financial insights
                         display_financial_insights(processed_csv)
                     
-                    # Add download button for the CSV
-                    with open(output_file, 'rb') as f:
-                        st.download_button(
-                            label="Download CSV",
-                            data=f,
-                            file_name="bank_statement.csv",
-                            mime="text/csv"
-                        )
+                    # Add download buttons
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        # CSV download button
+                        with open(output_file, 'rb') as f:
+                            st.download_button(
+                                label="📥 Download CSV",
+                                data=f,
+                                file_name="bank_statement.csv",
+                                mime="text/csv",
+                                help="Download transaction data as CSV file"
+                            )
+                    
+                    with col2:
+                        # Excel download button
+                        excel_file = "output/bank_statement_analysis.xlsx"
+                        with pd.ExcelWriter(excel_file, engine='openpyxl') as writer:
+                            # Save transaction data
+                            analyzer.df.to_excel(writer, sheet_name='Transactions', index=False)
+                            
+                            # Add summary sheets if available
+                            if hasattr(analyzer, 'get_transaction_summary'):
+                                summary = analyzer.get_transaction_summary()
+                                if summary:
+                                    pd.DataFrame([summary]).to_excel(writer, sheet_name='Summary', index=False)
+                            
+                            if hasattr(analyzer, 'get_monthly_summary'):
+                                monthly = analyzer.get_monthly_summary()
+                                if monthly:
+                                    monthly_df = pd.DataFrame(monthly).T.reset_index()
+                                    monthly_df.columns = ['Month'] + list(monthly_df.columns[1:])
+                                    monthly_df.to_excel(writer, sheet_name='Monthly Summary', index=False)
+                            
+                            # Add financial insights if available
+                            try:
+                                financial_analyzer = FinancialStatementAnalyzer(processed_csv)
+                                report = financial_analyzer.generate_comprehensive_report()
+                                
+                                # Add transaction counts
+                                pd.DataFrame([report['transaction_counts']]).to_excel(
+                                    writer, sheet_name='Financial Summary', index=False
+                                )
+                                
+                                # Add expense categories
+                                if report['expense_categories']:
+                                    pd.DataFrame(
+                                        list(report['expense_categories'].items()),
+                                        columns=['Category', 'Amount']
+                                    ).to_excel(writer, sheet_name='Expense Categories', index=False)
+                                
+                                # Add monthly surplus data
+                                if report['monthly_surplus']:
+                                    surplus_data = []
+                                    for month, data in report['monthly_surplus'].items():
+                                        row = {'Month': month}
+                                        row.update(data)
+                                        surplus_data.append(row)
+                                    pd.DataFrame(surplus_data).to_excel(
+                                        writer, sheet_name='Monthly Surplus', index=False
+                                    )
+                                
+                                # Add EMI analysis if available
+                                if report['emi_analysis']:
+                                    pd.DataFrame(report['emi_analysis']).to_excel(
+                                        writer, sheet_name='Recurring Payments', index=False
+                                    )
+                                
+                            except Exception as e:
+                                st.warning(f"Could not include all financial insights in Excel: {str(e)}")
+                        
+                        # Add download button for Excel
+                        with open(excel_file, 'rb') as f:
+                            st.download_button(
+                                label="📊 Download Excel Report",
+                                data=f,
+                                file_name="bank_statement_analysis.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                help="Download comprehensive financial report in Excel format"
+                            )
                     
                 except Exception as e:
                     st.error(f"Error processing PDF: {str(e)}")
