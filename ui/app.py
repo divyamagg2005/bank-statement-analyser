@@ -454,7 +454,6 @@ def main():
                             file_name="bank_statement_processed.csv",
                             mime="text/csv"
                         )
->>>>>>>>> Temporary merge branch 2
                     
                     # Save to Excel
                     excel_file = "output/statement_analysis.xlsx"
