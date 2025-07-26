@@ -1,1 +1,1 @@
-web: sh setup.sh && streamlit run ui/app.py --server.port=$PORT --server.address=0.0.0.0
+web: sh setup.sh && python3 -m streamlit run ui/app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false

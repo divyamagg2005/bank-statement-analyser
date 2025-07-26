@@ -1,12 +1,15 @@
 #!/bin/bash
 set -e
 
+echo "=== Starting setup ==="
+
 # Install system dependencies
 echo "Installing system dependencies..."
 apt-get update
-apt-get install -y --no-install-recommends \
+DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     ghostscript \
-    python3-dev \
+    python3.10-dev \
+    python3-pip \
     build-essential \
     libgl1-mesa-glx \
     libglib2.0-0 \
@@ -15,14 +18,19 @@ apt-get install -y --no-install-recommends \
     libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
+# Set Python 3.10 as default
+update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
+update-alternatives --set python3 /usr/bin/python3.10
+
+# Ensure pip is using the correct Python version
+python3 -m pip install --upgrade pip setuptools wheel
+
 # Install Python dependencies
 echo "Installing Python dependencies..."
-python -m pip install --upgrade pip setuptools wheel
+python3 -m pip install -r requirements.txt
 
-# Install ghostscript package without dependencies
-pip install --no-deps ghostscript==0.7
+# Install ghostscript Python bindings
+echo "Installing ghostscript Python bindings..."
+python3 -m pip install --no-deps ghostscript==0.7
 
-# Install other dependencies
-pip install -r requirements.txt
-
-echo "Setup completed successfully!"
+echo "=== Setup completed successfully ==="
