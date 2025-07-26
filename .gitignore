@@ -1,2 +1,74 @@
-/Account_stmt-1.pdf
-/WhatsApp Unknown 2025-07-25 at 22.30.24
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Project specific
+.env
+.env.*
+!.env.example
+
+# Output files
+output/*
+!output/.gitkeep
+
+# Temporary files
+temp_uploaded.pdf
+*.tmp
+
+# Bank statement PDFs (add specific patterns as needed)
+*.pdf
+!requirements.txt
+!README.md
+
+# Logs
+*.log
+
+# Local development
+local_settings.py
+db.sqlite3
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Distribution / packaging
+.Python
+env/
+build/
+*.mo
+*.pot

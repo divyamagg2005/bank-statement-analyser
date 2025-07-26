@@ -1,29 +1,26 @@
-# Core PDF parsing
+# Core application dependencies
+streamlit>=1.28.0
+pandas>=2.0.0
+
+# PDF processing with Camelot
 camelot-py[cv]>=0.10.1
-tabula-py>=2.9.0
-pdfplumber>=0.10.2
-PyPDF2>=3.0.1
+opencv-python>=4.8.0
+ghostscript>=0.7
 
-# Data handling
-pandas>=2.2.2
-numpy>=1.26.4
+# Data visualization
+plotly>=5.18.0
+matplotlib>=3.7.0
 
-# Web UI
-streamlit>=1.32.0
+# Data export formats
+openpyxl>=3.1.0
 
-# OCR support (optional but recommended)
-pytesseract>=0.3.10
-pdf2image>=1.17.0
-Pillow>=10.2.0
+# Additional dependencies
+PyPDF2>=3.0.0
+pillow>=10.0.0
+numpy
 
-# Google Gemini / Vertex AI SDK
-google-generativeai>=0.4.1
-
-# Utility
-python-dateutil>=2.9.0
-openpyxl>=3.1.2
-tqdm>=4.66.2
-regex>=2023.12.25
-
-# Logging / Debugging
-loguru>=0.7.2
+seaborn
+tabulate
+# System dependencies (may need manual installation)
+# For Linux/Mac: sudo apt-get install ghostscript (Ubuntu) or brew install ghostscript (Mac)
+# For Windows: Download and install Ghostscript manually from https://ghostscript.com/releases/gsdnld.html
