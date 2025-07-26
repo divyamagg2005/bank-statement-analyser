@@ -53,14 +53,30 @@ def main():
                     st.subheader("Extracted Transactions")
                     st.dataframe(df_display, use_container_width=True)
                     
-                    # Add download button for the CSV
-                    with open(output_file, 'rb') as f:
-                        st.download_button(
-                            label="Download CSV",
-                            data=f,
-                            file_name="bank_statement.csv",
-                            mime="text/csv"
-                        )
+                    # Add download buttons
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        # CSV Download Button
+                        with open(output_file, 'rb') as f:
+                            st.download_button(
+                                label="Download CSV",
+                                data=f,
+                                file_name="bank_statement.csv",
+                                mime="text/csv"
+                            )
+                    
+                    with col2:
+                        # Excel Download Button
+                        excel_file = "output/statement.xlsx"
+                        df.to_excel(excel_file, index=False)
+                        with open(excel_file, 'rb') as f:
+                            st.download_button(
+                                label="Download Excel",
+                                data=f,
+                                file_name="bank_statement.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                            )
                     
                 except Exception as e:
                     st.error(f"Error processing PDF: {str(e)}")
