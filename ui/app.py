@@ -124,12 +124,18 @@ def display_financial_insights(csv_file_path: str):
                 months = list(report['monthly_expenses'].keys())
                 expenses = list(report['monthly_expenses'].values())
                 
+                # Create a DataFrame for the bar chart
+                df_expenses = pd.DataFrame({
+                    'Month': months,
+                    'Expenses (₹)': expenses
+                })
+                
                 fig = px.bar(
-                    x=months,
-                    y=expenses,
-                    labels={'x': 'Month', 'y': 'Amount (₹)'},
+                    df_expenses,
+                    x='Month',
+                    y='Expenses (₹)',
                     title='Monthly Expenses',
-                    color=expenses,
+                    color='Expenses (₹)',
                     color_continuous_scale='Blues'
                 )
                 st.plotly_chart(fig, use_container_width=True)

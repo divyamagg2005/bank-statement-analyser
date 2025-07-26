@@ -20,185 +20,9 @@ class FinancialStatementAnalyzer:
         self.column_mapping = self.detect_column_mapping()
         self.prepare_data()
     
-    def consolidate_multirow_transactions(self) -> pd.DataFrame:
-        """
-        Enhanced consolidation of multi-row transactions where description spans multiple rows.
-        This handles cases where banks split transaction details across multiple rows
-        but only the first row contains the actual transaction data.
-        """
-        df_copy = self.df.copy()
-        
-        # Identify potential amount columns (including debit/credit columns with +/- signs)
-        amount_cols = []
-        for col in df_copy.columns:
-            if any(keyword in col.lower() for keyword in ['amount', 'debit', 'credit', 'balance']):
-                amount_cols.append(col)
-        
-        if not amount_cols:
-            return df_copy  # No amount columns found, return as is
-        
-        # Find rows that are likely continuation rows (empty/null in key fields)
-        consolidated_rows = []
-        i = 0
-        
-        while i < len(df_copy):
-            current_row = df_copy.iloc[i].copy()
-            
-            # Check if this row has substantial data (not a continuation row)
-            has_amount = False
-            has_date = False
-            has_reference = False
-            
-            # Check for amount data (including +/- signed amounts)
-            for col in amount_cols:
-                if pd.notna(current_row[col]) and str(current_row[col]).strip() != '':
-                    amount_str = str(current_row[col]).strip().replace(',', '').replace('"', '')
-                    if amount_str and amount_str not in ['0', '0.0', '0.00', '']:
-                        try:
-                            # Handle +/- signs
-                            if amount_str.startswith(('+', '-')):
-                                float(amount_str)
-                                has_amount = True
-                                break
-                            else:
-                                float(amount_str)
-                                if float(amount_str) != 0:
-                                    has_amount = True
-                                    break
-                        except:
-                            continue
-            
-            # Check for date data
-            for col in df_copy.columns:
-                if 'date' in col.lower() and pd.notna(current_row[col]) and str(current_row[col]).strip() != '':
-                    date_str = str(current_row[col]).strip()
-                    if date_str and len(date_str) > 5:  # Basic date length check
-                        try:
-                            pd.to_datetime(current_row[col], errors='raise')
-                            has_date = True
-                            break
-                        except:
-                            continue
-            
-            # Check for reference number or transaction ID
-            for col in df_copy.columns:
-                if any(keyword in col.lower() for keyword in ['ref', 'chq', 'transaction', 'txn']) and pd.notna(current_row[col]):
-                    ref_str = str(current_row[col]).strip()
-                    if ref_str and ref_str != '' and len(ref_str) > 3:
-                        has_reference = True
-                        break
-            
-            # If this row has substantial data, it's a main transaction row
-            if has_amount or has_date or has_reference:
-                # Look ahead for continuation rows
-                description_parts = []
-                
-                # Get description from current row
-                for col in df_copy.columns:
-                    col_lower = col.lower()
-                    if any(keyword in col_lower for keyword in ['description', 'particulars', 'narration', 'details', 'credit']) and 'amount' not in col_lower:
-                        if pd.notna(current_row[col]) and str(current_row[col]).strip() != '':
-                            desc_text = str(current_row[col]).strip()
-                            if desc_text not in description_parts and len(desc_text) > 2:
-                                description_parts.append(desc_text)
-                
-                # Check next rows for continuation
-                j = i + 1
-                while j < len(df_copy):
-                    next_row = df_copy.iloc[j]
-                    
-                    # Check if next row is a continuation (no amount, no date, no reference)
-                    next_has_amount = False
-                    next_has_date = False
-                    next_has_reference = False
-                    
-                    # Check for amount in next row
-                    for col in amount_cols:
-                        if pd.notna(next_row[col]) and str(next_row[col]).strip() != '':
-                            amount_str = str(next_row[col]).strip().replace(',', '').replace('"', '')
-                            if amount_str and amount_str not in ['0', '0.0', '0.00', '']:
-                                try:
-                                    if amount_str.startswith(('+', '-')):
-                                        float(amount_str)
-                                        next_has_amount = True
-                                        break
-                                    else:
-                                        if float(amount_str) != 0:
-                                            next_has_amount = True
-                                            break
-                                except:
-                                    continue
-                    
-                    # Check for date in next row
-                    for col in df_copy.columns:
-                        if 'date' in col.lower() and pd.notna(next_row[col]) and str(next_row[col]).strip() != '':
-                            date_str = str(next_row[col]).strip()
-                            if date_str and len(date_str) > 5:
-                                try:
-                                    pd.to_datetime(next_row[col], errors='raise')
-                                    next_has_date = True
-                                    break
-                                except:
-                                    continue
-                    
-                    # Check for reference in next row
-                    for col in df_copy.columns:
-                        if any(keyword in col.lower() for keyword in ['ref', 'chq', 'transaction', 'txn']) and pd.notna(next_row[col]):
-                            ref_str = str(next_row[col]).strip()
-                            if ref_str and ref_str != '' and len(ref_str) > 3:
-                                next_has_reference = True
-                                break
-                    
-                    # If next row has no substantial data, it's likely a continuation
-                    if not next_has_amount and not next_has_date and not next_has_reference:
-                        # Extract description from continuation row
-                        for col in df_copy.columns:
-                            if pd.notna(next_row[col]) and str(next_row[col]).strip() != '':
-                                desc_text = str(next_row[col]).strip()
-                                # Skip if it's just numbers, commas, or very short text
-                                if (desc_text and len(desc_text) > 2 and 
-                                    desc_text not in description_parts and
-                                    not desc_text.replace(',', '').replace('.', '').replace(' ', '').isdigit()):
-                                    description_parts.append(desc_text)
-                        j += 1
-                    else:
-                        break
-                
-                # Combine all description parts
-                if description_parts:
-                    combined_description = ' '.join(description_parts)
-                    # Update the description in current row - find the best column for description
-                    desc_col_found = False
-                    for col in df_copy.columns:
-                        col_lower = col.lower()
-                        if any(keyword in col_lower for keyword in ['description', 'particulars', 'narration', 'details']) and 'amount' not in col_lower:
-                            current_row[col] = combined_description
-                            desc_col_found = True
-                            break
-                    
-                    # If no dedicated description column found, use the credit column if it contains text
-                    if not desc_col_found:
-                        for col in df_copy.columns:
-                            if 'credit' in col.lower() and 'amount' not in col.lower():
-                                current_row[col] = combined_description
-                                break
-                
-                consolidated_rows.append(current_row)
-                i = j  # Skip the continuation rows
-            else:
-                # This might be a continuation row that wasn't caught, skip it
-                i += 1
-        
-        if consolidated_rows:
-            result_df = pd.DataFrame(consolidated_rows).reset_index(drop=True)
-            print(f"Consolidated {len(df_copy)} rows into {len(result_df)} transactions")
-            return result_df
-        else:
-            return df_copy
-
     def detect_column_mapping(self) -> Dict[str, str]:
         """
-        Enhanced column mapping detection for different bank statement formats.
+        Detect column mapping for different bank statement formats.
         Returns a mapping of standard column names to actual column names.
         """
         columns = [col.lower().strip() for col in self.df.columns]
@@ -214,29 +38,13 @@ class FinancialStatementAnalyzer:
                 mapping['date'] = self.df.columns[columns.index(matches[0])]
                 break
         
-        # Enhanced amount column detection - look for columns with +/- signs
-        amount_patterns = ['amount', 'transaction_amount', 'txn_amount', 'debit_amount', 'credit_amount', 'debit/credit']
+        # Amount column detection - try multiple patterns
+        amount_patterns = ['amount', 'transaction_amount', 'txn_amount', 'debit_amount', 'credit_amount']
         for pattern in amount_patterns:
             matches = [col for col in columns if pattern in col]
             if matches:
                 mapping['amount'] = self.df.columns[columns.index(matches[0])]
                 break
-        
-        # Special handling for columns that might contain both debit and credit with +/- signs
-        combined_patterns = ['debit/credit', 'amount', 'debit_credit', 'transaction_amount', 'debit', 'credit']
-        for pattern in combined_patterns:
-            matches = [col for col in columns if pattern in col and 'balance' not in col]
-            if matches:
-                col_name = self.df.columns[columns.index(matches[0])]
-                # Check if this column contains +/- signs indicating it's a combined column
-                sample_data = self.df[col_name].astype(str).head(20)
-                plus_count = sum(1 for val in sample_data if '+' in str(val))
-                minus_count = sum(1 for val in sample_data if '-' in str(val))
-                
-                if plus_count > 0 or minus_count > 0:
-                    mapping['amount'] = col_name
-                    print(f"Detected combined debit/credit column with +/- signs: {mapping['amount']}")
-                    break
         
         # If no single amount column, look for separate debit/credit columns
         if 'amount' not in mapping:
@@ -255,26 +63,13 @@ class FinancialStatementAnalyzer:
                     mapping['credit'] = self.df.columns[columns.index(matches[0])]
                     break
         
-        # Description column detection - enhanced to handle various formats
+        # Description column detection
         desc_patterns = ['description', 'particulars', 'narration', 'details', 'transaction_details', 'remark']
         for pattern in desc_patterns:
             matches = [col for col in columns if pattern in col]
             if matches:
                 mapping['description'] = self.df.columns[columns.index(matches[0])]
                 break
-        
-        # If no explicit description column, check if credit column contains text descriptions
-        if 'description' not in mapping:
-            for col in columns:
-                if 'credit' in col and 'amount' not in col:
-                    col_name = self.df.columns[columns.index(col)]
-                    # Check if this column contains text (not just numbers)
-                    sample_data = self.df[col_name].dropna().astype(str).head(10)
-                    text_count = sum(1 for val in sample_data if not val.replace(',', '').replace('.', '').replace('+', '').replace('-', '').replace(' ', '').isdigit())
-                    if text_count > len(sample_data) * 0.5:  # More than 50% are text
-                        mapping['description'] = col_name
-                        print(f"Using column '{col_name}' as description column")
-                        break
         
         # Balance column detection
         balance_patterns = ['balance', 'closing_balance', 'running_balance', 'available_balance']
@@ -284,23 +79,20 @@ class FinancialStatementAnalyzer:
                 mapping['balance'] = self.df.columns[columns.index(matches[0])]
                 break
         
-        # Reference/Cheque number detection
-        ref_patterns = ['ref', 'chq', 'cheque', 'reference', 'transaction_id', 'txn_id']
-        for pattern in ref_patterns:
+        # DR/CR indicator detection
+        drcr_patterns = ['dr_cr', 'type', 'transaction_type', 'dr_cr_indicator', 'txn_type']
+        for pattern in drcr_patterns:
             matches = [col for col in columns if pattern in col]
             if matches:
-                mapping['reference'] = self.df.columns[columns.index(matches[0])]
+                mapping['dr_cr_indicator'] = self.df.columns[columns.index(matches[0])]
                 break
         
         print(f"Detected column mapping: {mapping}")
         return mapping
     
     def prepare_data(self):
-        """Enhanced data preparation and cleaning."""
+        """Prepare and clean the data for analysis."""
         try:
-            # First, clean up multi-row transactions
-            self.df = self.consolidate_multirow_transactions()
-            
             # Handle date column
             if 'date' in self.column_mapping:
                 date_col = self.column_mapping['date']
@@ -310,77 +102,44 @@ class FinancialStatementAnalyzer:
                 for col in self.df.columns:
                     if self.df[col].dtype == 'object':
                         try:
-                            sample_val = self.df[col].dropna().iloc[0] if not self.df[col].dropna().empty else ""
-                            pd.to_datetime(sample_val, errors='raise')
+                            pd.to_datetime(self.df[col].dropna().iloc[0], errors='raise')
                             self.df['date'] = pd.to_datetime(self.df[col], errors='coerce', dayfirst=True)
                             break
                         except:
                             continue
             
-            # Enhanced amount column handling with proper +/- sign interpretation
+            # Handle amount columns
             if 'amount' in self.column_mapping:
-                # Single amount column exists (likely with +/- signs)
+                # Single amount column exists
                 amount_col = self.column_mapping['amount']
-                # Clean amount data - preserve +/- signs but remove commas and quotes
-                self.df['amount_raw'] = self.df[amount_col].astype(str).str.replace(',', '').str.replace('"', '').str.strip()
+                self.df['amount'] = pd.to_numeric(self.df[amount_col], errors='coerce').fillna(0)
                 
-                # Enhanced parsing for +/- signs
-                def parse_amount_with_sign(amount_str):
-                    if pd.isna(amount_str) or amount_str == '' or amount_str == 'nan' or amount_str == 'nan':
-                        return 0.0
-                    amount_str = str(amount_str).strip()
-                    
-                    # Handle cases with explicit + sign (credits - money coming in)
-                    if amount_str.startswith('+'):
-                        return float(amount_str[1:])  # Remove + and keep positive (credit)
-                    # Handle cases with explicit - sign (debits - money going out)
-                    elif amount_str.startswith('-'):
-                        return float(amount_str)  # Keep negative (debit)
-                    # Handle cases with no sign - assume positive (credit) unless context suggests otherwise
-                    else:
-                        try:
-                            return float(amount_str)
-                        except:
-                            return 0.0
-                
-                self.df['amount'] = self.df['amount_raw'].apply(parse_amount_with_sign)
-                
-                # Create debit and credit columns based on amount sign
-                # Positive amounts = Credits (money in), Negative amounts = Debits (money out)
-                self.df['debit'] = self.df['amount'].apply(lambda x: abs(x) if x < 0 else 0)
-                self.df['credit_amount'] = self.df['amount'].apply(lambda x: x if x > 0 else 0)
-                self.df['dr_cr_indicator'] = self.df['amount'].apply(lambda x: 'DR' if x < 0 else 'CR')
-                
-                print(f"Processed amounts with +/- signs. Credits: {len(self.df[self.df['amount'] > 0])}, Debits: {len(self.df[self.df['amount'] < 0])}")
+                # Create debit and credit columns based on DR/CR indicator or amount sign
+                if 'dr_cr_indicator' in self.column_mapping:
+                    dr_cr_col = self.column_mapping['dr_cr_indicator']
+                    self.df['debit'] = self.df.apply(
+                        lambda row: abs(row['amount']) if str(row[dr_cr_col]).upper().startswith('D') else 0, axis=1
+                    )
+                    self.df['credit_amount'] = self.df.apply(
+                        lambda row: abs(row['amount']) if str(row[dr_cr_col]).upper().startswith('C') else 0, axis=1
+                    )
+                    # Set dr_cr_indicator for consistency
+                    self.df['dr_cr_indicator'] = self.df[dr_cr_col].apply(
+                        lambda x: 'DR' if str(x).upper().startswith('D') else 'CR'
+                    )
+                else:
+                    # Use amount sign to determine debit/credit
+                    self.df['debit'] = self.df['amount'].apply(lambda x: abs(x) if x < 0 else 0)
+                    self.df['credit_amount'] = self.df['amount'].apply(lambda x: x if x > 0 else 0)
+                    self.df['dr_cr_indicator'] = self.df['amount'].apply(lambda x: 'DR' if x < 0 else 'CR')
             
             elif 'debit' in self.column_mapping and 'credit' in self.column_mapping:
                 # Separate debit and credit columns
                 debit_col = self.column_mapping['debit']
                 credit_col = self.column_mapping['credit']
                 
-                # Enhanced parsing for separate columns that might still have +/- signs
-                def parse_amount_column(col_data):
-                    cleaned = col_data.astype(str).str.replace(',', '').str.replace('"', '').str.strip()
-                    
-                    def parse_single_amount(amount_str):
-                        if pd.isna(amount_str) or amount_str == '' or amount_str == 'nan':
-                            return 0.0
-                        amount_str = str(amount_str).strip()
-                        
-                        if amount_str.startswith('+'):
-                            return float(amount_str[1:])
-                        elif amount_str.startswith('-'):
-                            return abs(float(amount_str))  # Make positive for debit/credit columns
-                        else:
-                            try:
-                                return abs(float(amount_str))
-                            except:
-                                return 0.0
-                    
-                    return cleaned.apply(parse_single_amount)
-                
-                self.df['debit'] = parse_amount_column(self.df[debit_col])
-                self.df['credit_amount'] = parse_amount_column(self.df[credit_col])
+                self.df['debit'] = pd.to_numeric(self.df[debit_col], errors='coerce').fillna(0)
+                self.df['credit_amount'] = pd.to_numeric(self.df[credit_col], errors='coerce').fillna(0)
                 
                 # Create amount column and dr_cr_indicator
                 self.df['amount'] = self.df.apply(
@@ -391,41 +150,17 @@ class FinancialStatementAnalyzer:
                 )
             
             else:
-                # Try to find amount-like columns by examining data with +/- signs
+                # Try to find amount-like columns by examining data
                 for col in self.df.columns:
                     try:
-                        # Clean the data first but preserve signs
-                        cleaned_data = self.df[col].astype(str).str.replace(',', '').str.replace('"', '').str.strip()
-                        
-                        # Check if this column contains +/- signs (indicating it's an amount column)
-                        plus_count = sum(1 for val in cleaned_data if '+' in str(val))
-                        minus_count = sum(1 for val in cleaned_data if '-' in str(val))
-                        
-                        if plus_count > 0 or minus_count > 0:
-                            def parse_amount_with_sign(amount_str):
-                                if pd.isna(amount_str) or amount_str == '' or amount_str == 'nan':
-                                    return 0.0
-                                amount_str = str(amount_str).strip()
-                                
-                                if amount_str.startswith('+'):
-                                    return float(amount_str[1:])  # Remove + and keep positive
-                                elif amount_str.startswith('-'):
-                                    return float(amount_str)  # Keep negative
-                                else:
-                                    try:
-                                        return float(amount_str)
-                                    except:
-                                        return 0.0
-                            
-                            numeric_data = cleaned_data.apply(parse_amount_with_sign)
-                            
-                            if not numeric_data.isna().all() and numeric_data.abs().max() > 100:  # Likely monetary values
-                                self.df['amount'] = numeric_data.fillna(0)
-                                self.df['debit'] = numeric_data.apply(lambda x: abs(x) if x < 0 else 0)
-                                self.df['credit_amount'] = numeric_data.apply(lambda x: x if x > 0 else 0)
-                                self.df['dr_cr_indicator'] = numeric_data.apply(lambda x: 'DR' if x < 0 else 'CR')
-                                print(f"Using column '{col}' as amount column with +/- signs")
-                                break
+                        numeric_data = pd.to_numeric(self.df[col], errors='coerce')
+                        if not numeric_data.isna().all() and numeric_data.abs().max() > 100:  # Likely monetary values
+                            self.df['amount'] = numeric_data.fillna(0)
+                            self.df['debit'] = numeric_data.apply(lambda x: abs(x) if x < 0 else 0)
+                            self.df['credit_amount'] = numeric_data.apply(lambda x: x if x > 0 else 0)
+                            self.df['dr_cr_indicator'] = numeric_data.apply(lambda x: 'DR' if x < 0 else 'CR')
+                            print(f"Using column '{col}' as amount column")
+                            break
                     except:
                         continue
             
@@ -437,32 +172,20 @@ class FinancialStatementAnalyzer:
                 # Find the most likely description column (text column with varied content)
                 text_cols = [col for col in self.df.columns if self.df[col].dtype == 'object']
                 if text_cols:
-                    # Use the first text column that's not date-related and contains meaningful text
+                    # Use the first text column that's not date-related
                     for col in text_cols:
-                        if ('date' not in col.lower() and 'balance' not in col.lower() and 
-                            'amount' not in col.lower()):
-                            # Check if it contains meaningful text descriptions
-                            sample_data = self.df[col].dropna().astype(str).head(10)
-                            if len(sample_data) > 0:
-                                avg_length = sum(len(text) for text in sample_data) / len(sample_data)
-                                if avg_length > 10:  # Meaningful descriptions are usually longer
-                                    self.df['description'] = self.df[col].fillna('')
-                                    print(f"Using column '{col}' as description column")
-                                    break
+                        if 'date' not in col.lower():
+                            self.df['description'] = self.df[col].fillna('')
+                            break
                     else:
                         self.df['description'] = self.df[text_cols[0]].fillna('')
                 else:
                     self.df['description'] = ''
             
-            # Handle balance column with proper comma removal
+            # Handle balance column
             if 'balance' in self.column_mapping:
                 balance_col = self.column_mapping['balance']
-                # Enhanced balance cleaning - remove commas and quotes, preserve signs
-                self.df['balance_clean'] = (self.df[balance_col].astype(str)
-                                          .str.replace(',', '')
-                                          .str.replace('"', '')
-                                          .str.strip())
-                self.df['balance'] = pd.to_numeric(self.df['balance_clean'], errors='coerce')
+                self.df['balance'] = pd.to_numeric(self.df[balance_col], errors='coerce')
             
             # Ensure required columns exist
             required_cols = ['amount', 'debit', 'credit_amount', 'dr_cr_indicator', 'description']
@@ -483,29 +206,12 @@ class FinancialStatementAnalyzer:
                 # Sort by date and remove invalid dates
                 self.df = self.df.sort_values('date').reset_index(drop=True)
                 self.df = self.df.dropna(subset=['date'])
-                
-                # Remove rows where all financial columns are zero/null (likely continuation rows that weren't caught)
-                financial_cols = ['amount', 'debit', 'credit_amount']
-                existing_financial_cols = [col for col in financial_cols if col in self.df.columns]
-                if existing_financial_cols:
-                    # Keep rows where at least one financial column has a non-zero value
-                    mask = (self.df[existing_financial_cols] != 0).any(axis=1)
-                    self.df = self.df[mask].reset_index(drop=True)
             
             print(f"Data prepared successfully. Total transactions: {len(self.df)}")
             print(f"Columns available: {list(self.df.columns)}")
             
-            # Print sample of processed data for verification
-            if len(self.df) > 0:
-                print("\nSample processed transactions:")
-                sample_cols = ['date', 'description', 'amount', 'debit', 'credit_amount', 'dr_cr_indicator']
-                available_cols = [col for col in sample_cols if col in self.df.columns]
-                print(self.df[available_cols].head(3).to_string())
-            
         except Exception as e:
             print(f"Error in data preparation: {str(e)}")
-            import traceback
-            traceback.print_exc()
             raise e
     
     def get_cr_dr_counts(self) -> Dict[str, int]:
@@ -527,8 +233,9 @@ class FinancialStatementAnalyzer:
             return float(last_balance)
         else:
             # Calculate from transactions if balance column is not available
-            # For +/- system: sum all amounts (positive credits, negative debits)
-            return float(self.df['amount'].sum())
+            total_credits = self.df['credit_amount'].sum()
+            total_debits = self.df['debit'].sum()
+            return total_credits - total_debits
     
     def get_monthly_expenses(self) -> Dict[str, float]:
         """Get monthly expenses (debits) breakdown."""
@@ -559,7 +266,7 @@ class FinancialStatementAnalyzer:
                 'trading', 'industries', 'cetp', 'upsidc'
             ],
             'Cash Withdrawal': ['cash', 'atm', 'cwdr'],
-            'Online Payments': ['payu', 'paytm', 'upi', 'nbsm', 'techprocess', 'blinkit'],
+            'Online Payments': ['payu', 'paytm', 'upi', 'nbsm', 'techprocess'],
             'Cheque Payments': ['clg', 'cheque', 'dd issued', 'con'],
             'Others': []
         }
