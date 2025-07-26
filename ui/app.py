@@ -444,41 +444,13 @@ def main():
                         # Display financial insights
                         display_financial_insights(processed_csv)
                     
-                    # Add download buttons
-                    st.sidebar.markdown("### Download Data")
-                    
-                    with open(processed_csv, 'rb') as f:
-                        st.sidebar.download_button(
-                            label="📥 Download Processed CSV",
+                    # Add download button for the CSV
+                    with open(output_file, 'rb') as f:
+                        st.download_button(
+                            label="Download CSV",
                             data=f,
-                            file_name="bank_statement_processed.csv",
+                            file_name="bank_statement.csv",
                             mime="text/csv"
-                        )
-                    
-                    # Save to Excel
-                    excel_file = "output/statement_analysis.xlsx"
-                    with pd.ExcelWriter(excel_file, engine='openpyxl') as writer:
-                        analyzer.df.to_excel(writer, sheet_name='Transactions', index=False)
-                        
-                        # Add summary sheets if available
-                        if hasattr(analyzer, 'get_transaction_summary'):
-                            summary = analyzer.get_transaction_summary()
-                            if summary:
-                                pd.DataFrame([summary]).to_excel(writer, sheet_name='Summary', index=False)
-                        
-                        if hasattr(analyzer, 'get_monthly_summary'):
-                            monthly = analyzer.get_monthly_summary()
-                            if monthly:
-                                monthly_df = pd.DataFrame(monthly).T.reset_index()
-                                monthly_df.columns = ['Month'] + list(monthly_df.columns[1:])
-                                monthly_df.to_excel(writer, sheet_name='Monthly Summary', index=False)
-                    
-                    with open(excel_file, 'rb') as f:
-                        st.sidebar.download_button(
-                            label="📥 Download Full Report (Excel)",
-                            data=f,
-                            file_name="bank_statement_analysis.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         )
                     
                 except Exception as e:
